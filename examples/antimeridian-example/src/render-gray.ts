@@ -5,7 +5,7 @@ import {
   WhiteIsZero,
 } from "@developmentseed/deck.gl-raster/gpu-modules";
 import type { GetTileDataOptions } from "@developmentseed/deck.gl-geotiff";
-import { texture } from "@developmentseed/deck.gl-geotiff";
+import { createTextureProps } from "@developmentseed/deck.gl-geotiff";
 import type { GeoTIFF, Overview } from "@developmentseed/geotiff";
 import type { Texture } from "@luma.gl/core";
 
@@ -41,8 +41,8 @@ function inner90Range(data: ArrayLike<number>): [number, number] {
 /**
  * Tile loader for the 1-band (16-bit unsigned) DEP GeoMAD bands used in this
  * example. Both COGs here have no overviews, so `image` is always the base
- * `GeoTIFF`; `texture.createTextureProps` infers the right WebGL format from
- * its tags (`r16unorm` for this data) rather than assuming 8-bit.
+ * `GeoTIFF`; `createTextureProps` infers the right WebGL format from its
+ * tags (`r16unorm` for this data) rather than assuming 8-bit.
  */
 export async function getTileDataGray(
   image: GeoTIFF | Overview,
@@ -55,7 +55,7 @@ export async function getTileDataGray(
     throw new Error("Expected a pixel-interleaved (1-band) COG");
   }
   const { width, height, data } = array;
-  const props = texture.createTextureProps(image as GeoTIFF, data, {
+  const props = createTextureProps(image as GeoTIFF, data, {
     width,
     height,
   });
