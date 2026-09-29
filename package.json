@@ -1,7 +1,7 @@
 {
   "name": "monorepo",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0-beta.2",
   "description": "GPU-accelerated COG and Zarr visualization in deck.gl",
   "scripts": {
     "build": "pnpm --recursive --filter=!docs build",
@@ -18,8 +18,8 @@
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.13",
-    "publint": "^0.3.18",
+    "@biomejs/biome": "^2.5.6",
+    "publint": "^0.3.22",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3"
   },

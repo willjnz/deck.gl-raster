@@ -16,6 +16,7 @@ import type {
   MultiRasterTilesetDescriptor,
   ProjectionFunction,
   RasterModule,
+  RasterTileLayerProps,
   RasterTileMetadata,
   RasterTilesetDescriptor,
   RasterTilesetLevel,
@@ -48,7 +49,8 @@ import {
   metersPerUnit,
   parseWkt,
 } from "@developmentseed/proj";
-import type { Device, Texture, TextureFormat } from "@luma.gl/core";
+import type { Device, SamplerProps, TextureFormat } from "@luma.gl/core";
+import { Texture } from "@luma.gl/core";
 import proj4 from "proj4";
 import { DEFAULT_CONCURRENCY_LIMITER } from "./default-concurrency-limiter.js";
 import { fetchGeoTIFF, getGeographicBounds } from "./geotiff/geotiff.js";
@@ -183,6 +185,17 @@ export type MultiCOGLayerProps = CompositeLayerProps &
      * @see {@link RasterModule}
      */
     renderPipeline?: RasterModule[];
+
+    /**
+     * Sampler used for each band's GPU texture.
+     *
+     * Linear blends real data with nodata/out-of-bounds fill at mask, tile,
+     * and dataset edges. Use nearest to avoid that blending, at the cost of
+     * blocky pixels when zoomed in past native resolution.
+     *
+     * @default { minFilter: "linear", magFilter: "linear" }
+     */
+    bandSampler?: SamplerProps;
 
     /**
      * EPSG code resolver used to look up projection definitions for numeric
@@ -622,6 +635,24 @@ export class MultiCOGLayer extends RasterTileLayer<
       this._buildRenderResult(data);
   }
 
+  protected override _onTileUnloadCallback(): RasterTileLayerProps<MultiTileResult>["onTileUnload"] {
+    const onTileUnload = this.props.onTileUnload;
+    // MultiCOGLayer always creates the band textures itself (there is no
+    // user-supplied `getTileData`), so it always frees them.
+    return (tile) => {
+      onTileUnload?.(tile);
+      const data = tile.content;
+      if (!data) {
+        return;
+      }
+      for (const band of data.bands.values()) {
+        if (band.texture instanceof Texture) {
+          band.texture.destroy();
+        }
+      }
+    };
+  }
+
   protected override _renderDebug(
     tile: Tile2DHeader<MultiTileResult>,
     data: MultiTileResult | null,
@@ -706,7 +737,11 @@ export class MultiCOGLayer extends RasterTileLayer<
       signal,
     });
 
-    const texture = createBandTexture(device, tile.array);
+    const texture = createBandTexture(
+      device,
+      tile.array,
+      this.props.bandSampler,
+    );
     const arr = tile.array;
     const byteLength =
       arr.layout === "pixel-interleaved"
@@ -813,7 +848,11 @@ export class MultiCOGLayer extends RasterTileLayer<
       minRow: resolution.minRow,
     });
 
-    const texture = createBandTexture(device, assembled);
+    const texture = createBandTexture(
+      device,
+      assembled,
+      this.props.bandSampler,
+    );
     const assembledByteLength =
       assembled.layout === "pixel-interleaved"
         ? assembled.data.byteLength
@@ -1051,7 +1090,11 @@ function selectImage(geotiff: GeoTIFF, z: number): GeoTIFF | Overview {
  *
  * TODO: use `inferTextureFormat` from `texture.ts` for full format support.
  */
-function createBandTexture(device: Device, array: RasterArray): Texture {
+function createBandTexture(
+  device: Device,
+  array: RasterArray,
+  sampler: SamplerProps = { minFilter: "linear", magFilter: "linear" },
+): Texture {
   if (array.layout !== "pixel-interleaved") {
     throw new Error("Band-separate layout not yet supported in MultiCOGLayer");
   }
@@ -1075,7 +1118,7 @@ function createBandTexture(device: Device, array: RasterArray): Texture {
     format,
     width,
     height,
-    sampler: { minFilter: "linear", magFilter: "linear" },
+    sampler,
   });
 }
 
