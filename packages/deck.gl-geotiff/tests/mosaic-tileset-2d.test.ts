@@ -101,6 +101,24 @@ describe("MosaicTileset2D tile metadata", () => {
   });
 });
 
+describe("MosaicTileset2D stale index resilience", () => {
+  it("skips a matched index that points past the end of a since-shrunk sources array, instead of throwing", () => {
+    // Simulates the index being built for a larger `sources` array than
+    // `getSources()` currently returns — e.g. one frame after an async
+    // `sources` load where the layer's index rebuild hasn't caught up yet.
+    const index = buildIndex([A, B, C])!;
+    const tileset = new MosaicTileset2D<Item>(
+      () => [A], // getSources() now returns fewer items than the index knows about
+      () => index,
+      { getTileData: () => new Promise(() => {}) } as unknown as Tileset2DProps,
+    );
+    const result = tileset.getTileIndices({
+      viewport: makeViewport([-1, -1, 51, 11]),
+    });
+    expect(result.map((s) => s.name)).toEqual(["A"]);
+  });
+});
+
 describe("MosaicTileset2D tile ids", () => {
   it("defaults each source's tile-cache id to its array position", () => {
     const tileset = makeTileset([A, B, C]);
@@ -152,12 +170,25 @@ describe("MosaicTileset2D world-copy passes", () => {
     expect(result.map((s) => s.name)).toEqual(["east"]);
   });
 
-  it.each([
-    ["only one world copy is visible", [{}]],
-    ["subViewports is absent (e.g. Globe view)", null],
-  ])("does not run world-copy passes when %s", (_label, subViewports) => {
+  it("still finds a source via a shifted world copy when only one subViewport is currently visible", () => {
+    // `subViewports.length === 1` means the *viewport's own* bounds don't
+    // currently straddle a seam -- e.g. zoomed in tight to one side, away
+    // from ±180° -- but that says nothing about whether a *source*'s own
+    // indexed position is a world copy away from the query. Gating the
+    // offset search on `subViewports != null` (repeat mode active at all)
+    // instead of `.length > 1` fixes exactly this case: without it, `east`
+    // would incorrectly disappear the moment the camera zoomed in tight
+    // enough that only one subViewport remained. See
+    // dev-docs/world-copies.md.
     const tileset = makeTileset([east]);
-    const viewport = makeViewport([183, -10, 191, 10], 5, subViewports);
+    const viewport = makeViewport([183, -10, 191, 10], 5, [{}]);
+    const result = tileset.getTileIndices({ viewport });
+    expect(result.map((s) => s.name)).toEqual(["east"]);
+  });
+
+  it("does not run world-copy passes when subViewports is absent (e.g. Globe view)", () => {
+    const tileset = makeTileset([east]);
+    const viewport = makeViewport([183, -10, 191, 10], 5, null);
     expect(tileset.getTileIndices({ viewport })).toEqual([]);
   });
 

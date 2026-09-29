@@ -1,11 +1,11 @@
-import type { RenderTileResult } from "@developmentseed/deck.gl-raster";
-import {
-  CreateTexture,
-  LinearRescale,
-  WhiteIsZero,
-} from "@developmentseed/deck.gl-raster/gpu-modules";
 import type { GetTileDataOptions } from "@developmentseed/deck.gl-geotiff";
 import { createTextureProps } from "@developmentseed/deck.gl-geotiff";
+import type { RenderTileResult } from "@developmentseed/deck.gl-raster";
+import {
+  BlackIsZero,
+  CreateTexture,
+  LinearRescale,
+} from "@developmentseed/deck.gl-raster/gpu-modules";
 import type { GeoTIFF, Overview } from "@developmentseed/geotiff";
 import type { Texture } from "@luma.gl/core";
 
@@ -49,11 +49,12 @@ export async function getTileDataGray(
 }
 
 /**
- * Render pipeline showing raw value as white (low) → black (high) —
- * `WhiteIsZero`, matching TIFF `PhotometricInterpretation = 0` regardless of
- * this data's own tag (`= 1`, BlackIsZero).
+ * Render pipeline: a plain linear ramp — dark = low value, bright = high
+ * value. `BlackIsZero` broadcasts the single band into RGB so it renders as
+ * grayscale instead of red-tinted (a bare `r16unorm` texture only has data
+ * in the red channel).
  */
-export function renderGrayWhiteToBlack(data: GrayTileData): RenderTileResult {
+export function renderGray(data: GrayTileData): RenderTileResult {
   return {
     renderPipeline: [
       { module: CreateTexture, props: { textureName: data.texture } },
@@ -61,7 +62,7 @@ export function renderGrayWhiteToBlack(data: GrayTileData): RenderTileResult {
         module: LinearRescale,
         props: { rescaleMin: RESCALE_MIN, rescaleMax: RESCALE_MAX },
       },
-      { module: WhiteIsZero },
+      { module: BlackIsZero },
     ],
   };
 }

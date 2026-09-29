@@ -37,4 +37,5 @@ export {
   AffineTilesetLevel,
   RasterTileset2D,
   TileMatrixSetAdaptor,
+  unwrapEastLng as _unwrapEastLng,
 } from "./raster-tileset/index.js";

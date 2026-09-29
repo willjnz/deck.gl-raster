@@ -139,27 +139,30 @@ describe("RasterTileset2D.getTileMetadata — _antimeridianCut", () => {
       expect(cx).toBeCloseTo(477.87, 1);
     });
 
-    it("shifts a point that wraps to common-space x < TILE_SIZE/2 by +TILE_SIZE (east piece's interior)", () => {
+    it("leaves the east piece's interior unshifted (already its own natural, near-0 position)", () => {
       const metadata = crossingMetadata();
       // Native lng −162° wraps to −162° (already in range) → common-space
-      // x ≈ 25.6 (< 256) → shifted to ≈ 537.6, continuing past the west
-      // piece's edge instead of wrapping back to the start of the world.
+      // x ≈ 25.6 (< 256) — left as-is, since this IS the east piece's own
+      // natural position. Forcing it to join the west piece's frame (the old
+      // +TILE_SIZE behavior) put it a full world away from wherever the
+      // camera was actually looking whenever only the east piece was in
+      // view — see `buildPieceReprojection`'s doc comment.
       const [cx] = metadata._eastReprojection!.forwardReproject(-162, 24);
-      expect(cx).toBeCloseTo(25.6 + TILE_SIZE, 1);
+      expect(cx).toBeCloseTo(25.6, 1);
     });
 
-    it("does NOT shift the exact seam corner, even though it's the east piece's own west edge — the bug this fix corrects", () => {
+    it("shifts the seam corner by -TILE_SIZE for the east piece, joining its own interior instead of the west piece's frame", () => {
       // The seam itself: native lng −180° wraps to exactly +180° →
-      // common-space x = TILE_SIZE exactly (512, not < TILE_SIZE/2). This is
-      // the same corner as the west piece's east edge — both pieces must
-      // agree on it, or the boundary corner gets double-shifted (regression
-      // test for the real-world bug: a single per-piece constant shift
-      // pushed this corner to 1024 instead of leaving it at 512).
+      // common-space x = TILE_SIZE exactly (512). For the WEST piece this is
+      // its own natural east edge — no shift. For the EAST piece this same
+      // raw value is its own west edge, but belongs to the east piece's
+      // natural (near-0) frame, so it shifts by -TILE_SIZE to join up with
+      // that piece's interior (≈25.6) rather than sitting a full world away.
       const metadata = crossingMetadata();
       const [westCx] = metadata._westReprojection!.forwardReproject(-180, 24);
       const [eastCx] = metadata._eastReprojection!.forwardReproject(-180, 24);
       expect(westCx).toBeCloseTo(TILE_SIZE, 9);
-      expect(eastCx).toBeCloseTo(TILE_SIZE, 9);
+      expect(eastCx).toBeCloseTo(0, 9);
     });
 
     it("round-trips forwardReproject/inverseReproject for a shifted point", () => {
@@ -170,6 +173,51 @@ describe("RasterTileset2D.getTileMetadata — _antimeridianCut", () => {
       const [x, y] = inverseReproject(cx, cy);
       expect(x).toBeCloseTo(-162, 6);
       expect(y).toBeCloseTo(24, 6);
+    });
+  });
+
+  describe("wide crossing tile (>170° per-piece width, previously rejected outright)", () => {
+    // Native lngs -100..190 (un-normalized, west<east): crosses +180° at
+    // uCut = 280/290. The west piece alone is 280° wide — well past the
+    // old (now-removed) 170° per-piece guard, but under the 360°
+    // total-width limit. See replace-256-x-heuristic.md.
+    function wideCrossingMetadata() {
+      const level = new AffineTilesetLevel({
+        affine: compose(translation(-100, 24), scale(1, -1)),
+        arrayWidth: 290,
+        arrayHeight: 42,
+        tileWidth: 290,
+        tileHeight: 42,
+        mpu: 1,
+      });
+      const descriptor = new AffineTileset({
+        levels: [level],
+        ...WRAPPING_PROJECTIONS,
+      });
+      const tileset = new RasterTileset2D(tilesetProps(), descriptor);
+      return tileset.getTileMetadata({ x: 0, y: 0, z: 0 });
+    }
+
+    it("still detects and cuts a >170°-wide piece", () => {
+      const metadata = wideCrossingMetadata();
+      expect(metadata._antimeridianCut).toBeDefined();
+      expect(metadata._antimeridianCut?.uCut).toBeCloseTo(280 / 290, 5);
+    });
+
+    it("does not wrongly shift a west piece's legitimate low-x point (the false positive the old heuristic hit)", () => {
+      const metadata = wideCrossingMetadata();
+      // Native lng -90°, 10° in from the tile's -100° corner: no proj4
+      // wrap occurs at all, x=128 is already correct. The old
+      // `x < TILE_SIZE/2` test would have wrongly added TILE_SIZE here.
+      const [cx] = metadata._westReprojection!.forwardReproject(-90, 24);
+      expect(cx).toBeCloseTo(128, 3);
+    });
+
+    it("renders an east-piece point that genuinely wrapped at its own natural near-0 position", () => {
+      const metadata = wideCrossingMetadata();
+      // Native lng 185°, 5° past the seam: proj4 wraps this to -175°.
+      const [cx] = metadata._eastReprojection!.forwardReproject(185, 24);
+      expect(cx).toBeCloseTo(7.11, 1);
     });
   });
 });
