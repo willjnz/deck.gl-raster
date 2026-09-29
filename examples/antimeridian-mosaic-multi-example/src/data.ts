@@ -8,12 +8,14 @@ export type GeomadItem = {
 const BASE =
   "https://s3.us-west-2.amazonaws.com/dep-public-staging/dep_ls_geomad/0-3-1-test";
 
-// Two items from the same DEP Landsat GeoMAD catalog: `064/020` doesn't cross
-// the antimeridian, `066/022` does. Fetched from each item's own STAC item
-// JSON below rather than hardcoding bbox/asset URLs.
+// Items from the same DEP Landsat GeoMAD catalog: `066/022` crosses the
+// antimeridian, the rest don't. Fetched from each item's own STAC item JSON
+// below rather than hardcoding bbox/asset URLs.
 const ITEM_PATHS = [
   "064/020/2025/dep_ls_geomad_064_020_2025",
-  "066/022/2025/dep_ls_geomad_066_022_2025",
+  "065/021/2025/dep_ls_geomad_065_021_2025",
+  "066/022/2025/dep_ls_geomad_066_022_2025", // AM-crossing
+  "067/020/2025/dep_ls_geomad_067_020_2025",
 ];
 
 type StacItem = {
