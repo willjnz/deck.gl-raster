@@ -11,9 +11,9 @@ const PARQUET_URL =
   "https://s3.us-west-2.amazonaws.com/dep-public-staging/dep_ls_geomad/0-3-1-test/dep_ls_geomad.parquet";
 
 /**
- * Fetch every item in the DEP Landsat GeoMAD test catalog from its
- * STAC-geoparquet and pull out just what this example needs. `066/022`
- * crosses the antimeridian; the rest don't.
+ * Fetch every item in the DEP Landsat GeoMAD test catalog (a 4×3 grid, 12
+ * items) from its STAC-geoparquet and pull out just what this example needs.
+ * The 3 items at column `066` cross the antimeridian; the other 9 don't.
  *
  * The STAC bbox for a crossing item is GeoJSON-flipped (RFC 7946 §5.2: crosses
  * ±180° → xmin > xmax, e.g. `066/022`'s `179.97, -179.17`). MosaicLayer's

@@ -16,8 +16,8 @@ import { getTileDataGray, renderGrayWhiteToBlack } from "./render-gray.js";
 
 // Every item in the DEP Landsat GeoMAD test catalog (EPSG:3832 / PDC
 // Mercator), shown together as they are — no reprojection-hiding fitBounds.
-// `066_022` crosses the antimeridian (GeoJSON-flipped corner lngs: xmin
-// 179.97 → xmax −179.17); the rest don't, for comparison.
+// The 3 items at column `066` cross the antimeridian (GeoJSON-flipped corner
+// lngs: xmin 179.97 → xmax −179.17); the other 9 don't, for comparison.
 const PARQUET_URL =
   "https://s3.us-west-2.amazonaws.com/dep-public-staging/dep_ls_geomad/0-3-1-test/dep_ls_geomad.parquet";
 
@@ -85,9 +85,9 @@ export default function App() {
         sourcePath="examples/antimeridian-example"
       >
         <Text mb="2" color="gray.600">
-          All {redBandUrls.length}{" "}
+          All {redBandUrls.length || 12}{" "}
           <ExternalLink href="https://cogeo.org">COGs</ExternalLink> in the
-          test catalog: one crosses the ±180° antimeridian, the rest don't —
+          test catalog: 3 cross the ±180° antimeridian, the other 9 don't —
           see{" "}
           <ExternalLink href="https://github.com/developmentseed/deck.gl-raster/issues/575">
             #575
