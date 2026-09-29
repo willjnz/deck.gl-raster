@@ -4,6 +4,14 @@ import { _Tileset2D as Tileset2D } from "@deck.gl/geo-layers";
 import { _sortItemsByDistanceFromViewportCenter as sortItemsByDistanceFromViewportCenter } from "@developmentseed/deck.gl-raster";
 import type Flatbush from "flatbush";
 
+/**
+ * Maximum number of world copies to test on each side of the primary world
+ * so max 7 (primary + 3 either side if visible). Mirrors
+ * `raster-tile-traversal.ts`'s `MAX_MAPS`, which in turn matches upstream
+ * `@deck.gl/geo-layers/tile-2d-traversal.ts`.
+ */
+const MAX_MAPS = 3;
+
 /** Tile index.
  *
  * Note this is essentially just to type-check deck.gl, since getTileIndices
@@ -45,9 +53,6 @@ export type MosaicSource = {
  * (defaulting to the array position) so deck.gl typing is satisfied and the
  * cache identifier is always defined. */
 type ResolvedSource<MosaicT> = TileIndex & MosaicT & { id: string };
-
-/** Matches raster-tile-traversal.ts's world-copy pass count. */
-const MAX_MAP_COPIES = 3;
 
 export class MosaicTileset2D<MosaicT extends MosaicSource> extends Tileset2D {
   /** Closure returning the parent layer's current sources array. Re-evaluated
@@ -111,34 +116,26 @@ export class MosaicTileset2D<MosaicT extends MosaicSource> extends Tileset2D {
       return [];
     }
 
-    const [minX, minY, maxX, maxY] = viewport.getBounds();
-    const matchedIndices = new Set(index.search(minX, minY, maxX, maxY));
+    const viewportBounds = viewport.getBounds();
+    const matched = new Set<number>(index.search(...viewportBounds));
 
-    // World-copy passes: when the viewport spans multiple world copies (e.g.
-    // WebMercatorViewport with repeat: true panned across the antimeridian),
-    // `viewport.getBounds()` reports longitudes for only one copy, but a
-    // source's bbox may only be indexed in another copy's range. Re-query the
-    // index with the bounds shifted by ±360°, ±720°… — same idea as
-    // raster-tile-traversal.ts's per-offset frustum passes, just in lng/lat
-    // instead of common-space pixels. See dev-docs/world-copies.md.
+    // World-copy passes: see "MosaicTileset2D source selection" in
+    // dev-docs/world-copies.md.
     if ((viewport.subViewports?.length ?? 0) > 1) {
-      for (let n = 1; n <= MAX_MAP_COPIES; n++) {
-        for (const offset of [-n, n]) {
-          const shift = offset * 360;
-          for (const i of index.search(
-            minX + shift,
-            minY,
-            maxX + shift,
-            maxY,
-          )) {
-            matchedIndices.add(i);
-          }
+      for (let worldOffset = -1; worldOffset >= -MAX_MAPS; worldOffset--) {
+        if (!searchAtOffset(index, viewportBounds, worldOffset, matched)) {
+          break;
+        }
+      }
+      for (let worldOffset = 1; worldOffset <= MAX_MAPS; worldOffset++) {
+        if (!searchAtOffset(index, viewportBounds, worldOffset, matched)) {
+          break;
         }
       }
     }
 
     const sources = this.getSources();
-    const selectedSources = Array.from(matchedIndices).map((sourceIndex) => {
+    const selectedSources = [...matched].map((sourceIndex) => {
       const source = sources[sourceIndex]!;
       return {
         // Remove once https://github.com/visgl/deck.gl/pull/10299
@@ -165,4 +162,30 @@ export class MosaicTileset2D<MosaicT extends MosaicSource> extends Tileset2D {
       },
     );
   }
+}
+
+/**
+ * Query `index` with `bounds` shifted by `worldOffset * 360°` of longitude,
+ * adding any matched source indices into `matched`. Returns `true` if this
+ * offset matched anything, signaling the caller to keep walking further from
+ * the primary world; `false` stops that direction's walk (the offset has
+ * moved past the visible range).
+ */
+function searchAtOffset(
+  index: Flatbush,
+  bounds: [number, number, number, number],
+  worldOffset: number,
+  matched: Set<number>,
+): boolean {
+  const shift = worldOffset * 360;
+  const found = index.search(
+    bounds[0] - shift,
+    bounds[1],
+    bounds[2] - shift,
+    bounds[3],
+  );
+  for (const i of found) {
+    matched.add(i);
+  }
+  return found.length > 0;
 }
