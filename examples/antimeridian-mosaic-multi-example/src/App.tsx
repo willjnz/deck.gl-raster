@@ -47,6 +47,7 @@ export default function App() {
           blue: { url: source.assets.blue },
         },
         composite: { r: "red", g: "green", b: "blue" },
+        bandSampler: { minFilter: "nearest", magFilter: "nearest" },
         renderPipeline: [
           {
             module: LinearRescale,
