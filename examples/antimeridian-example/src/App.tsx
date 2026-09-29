@@ -13,14 +13,19 @@ import { useState } from "react";
 import { Map as MaplibreMap } from "react-map-gl/maplibre";
 import { getTileDataGray, renderGrayWhiteToBlack } from "./render-gray.js";
 
-// Two items from the same DEP Landsat GeoMAD catalog (EPSG:3832 / PDC
+// Four items from the same DEP Landsat GeoMAD catalog (EPSG:3832 / PDC
 // Mercator), shown together as they are — no reprojection-hiding fitBounds.
 // `066_022` crosses the antimeridian (GeoJSON-flipped corner lngs: xmin
-// 179.97 → xmax −179.17); `064_020` doesn't, for comparison.
-const CROSSING_URL =
-  "https://s3.us-west-2.amazonaws.com/dep-public-staging/dep_ls_geomad/0-3-1-test/066/022/2025/dep_ls_geomad_066_022_2025_red.tif";
-const NON_CROSSING_URL =
-  "https://s3.us-west-2.amazonaws.com/dep-public-staging/dep_ls_geomad/0-3-1-test/064/020/2025/dep_ls_geomad_064_020_2025_red.tif";
+// 179.97 → xmax −179.17); the rest don't, for comparison.
+const BASE =
+  "https://s3.us-west-2.amazonaws.com/dep-public-staging/dep_ls_geomad/0-3-1-test";
+const ITEM_PATHS = [
+  "064/020/2025/dep_ls_geomad_064_020_2025",
+  "065/021/2025/dep_ls_geomad_065_021_2025",
+  "066/022/2025/dep_ls_geomad_066_022_2025", // AM-crossing
+  "067/020/2025/dep_ls_geomad_067_020_2025",
+];
+const RED_BAND_URLS = ITEM_PATHS.map((path) => `${BASE}/${path}_red.tif`);
 
 export default function App() {
   const [debugState, setDebugState] = useState<DebugState>({
@@ -28,7 +33,7 @@ export default function App() {
     debugOpacity: 0.25,
   });
 
-  const layers = [CROSSING_URL, NON_CROSSING_URL].map(
+  const layers = RED_BAND_URLS.map(
     (url) =>
       new COGLayer({
         id: `cog-layer-${url}`,
@@ -79,9 +84,9 @@ export default function App() {
         sourcePath="examples/antimeridian-example"
       >
         <Text mb="2" color="gray.600">
-          Two <ExternalLink href="https://cogeo.org">COGs</ExternalLink> from
-          the same catalog: one crosses the ±180° antimeridian, one doesn't —
-          see{" "}
+          Four <ExternalLink href="https://cogeo.org">COGs</ExternalLink> from
+          the same catalog: one crosses the ±180° antimeridian, the rest
+          don't — see{" "}
           <ExternalLink href="https://github.com/developmentseed/deck.gl-raster/issues/575">
             #575
           </ExternalLink>
